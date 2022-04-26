@@ -138,7 +138,7 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
     minlcp = std::min(startlcp, endlcp);
     int mid = (start + end) / 2;
     int compare = lcpcompare(seq, csa[mid], query, minlcp);
-    std::cout << start << "," << end << ", q: " << query << ", startlcp: " << startlcp << ", endlcp: " << endlcp << ", comapre: "<< compare  << std::endl;
+    //std::cout << start << "," << end << ", q: " << query << ", startlcp: " << startlcp << ", endlcp: " << endlcp << ", comapre: "<< compare  << std::endl;
     // query < mid
     if (compare < 0) {
       end = mid - 1;
@@ -171,7 +171,7 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
     minlcp = std::min(startlcp, endlcp);
     int mid = (start + end) / 2;
     int compare = lcpcompare(seq, csa[mid], query, minlcp);
-    std::cout << start << ",  " << end << ", q: " << query << ", startlcp: " << startlcp << ", endlcp: " << endlcp << ", comapre: " << compare  << std::endl;
+    //std::cout << start << ",  " << end << ", q: " << query << ", startlcp: " << startlcp << ", endlcp: " << endlcp << ", comapre: " << compare  << std::endl;
     // query < mid
     if (compare < 0) {
       end = mid - 1;
@@ -196,7 +196,7 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
       std::chrono::duration_cast<std::chrono::nanoseconds>(endtime - starttime)
           .count();
   if (found) {
-    std::cout << "smallest: " << smallest << " largest: " << largest << std::endl;
+    //std::cout << "smallest: " << smallest << " largest: " << largest << std::endl;
     results[name] = {smallest, largest};
   } else {
     results[name] = {-1, -2};
@@ -217,7 +217,7 @@ void binsearch(int startidx, int endidx, std::string const &seq,
   while (start <= end) {
     int mid = (start + end) / 2;
     std::string segment = seq.substr(csa[mid], query.length());
-    std::cout << start << "," << end << ", q: " << query << ", segment: " << segment << std::endl;
+    //std::cout << start << "," << end << ", q: " << query << ", segment: " << segment << std::endl;
     int compare = query.compare(segment);
     // query < mid
     if (compare < 0) {
@@ -243,8 +243,7 @@ void binsearch(int startidx, int endidx, std::string const &seq,
   while (start <= end) {
     int mid = (start + end) / 2;
     std::string segment = seq.substr(csa[mid], query.length());
-    std::cout << start << "," << end << ", q: " << query
-              << ", segment: " << segment << std::endl;
+   // std::cout << start << "," << end << ", q: " << query << ", segment: " << segment << std::endl; 
     int compare = query.compare(segment);
     // query < mid
     if (compare < 0) {
@@ -268,7 +267,7 @@ void binsearch(int startidx, int endidx, std::string const &seq,
       std::chrono::duration_cast<std::chrono::nanoseconds>(endtime - starttime)
           .count();
   if (found) {
-    std::cout << "smallest: " << smallest << " largest: " << largest << std::endl;
+    ///std::cout << "smallest: " << smallest << " largest: " << largest << std::endl;
     results[name] = {smallest, largest};
   } else {
     results[name] = {-1, -2};
@@ -366,10 +365,7 @@ int main(int argc, char **argv) {
     iarchive(prefix_table, seq);
   }
 
-  for (const auto &[key, val] : prefix_table) {
-    std::cout << "k: " << key << ",  val: " << std::to_string(val.first) << ","
-              << std::to_string(val.second) << std::endl;
-  }
+  
 
   csa.load(infile);
 
@@ -427,14 +423,11 @@ int main(int argc, char **argv) {
     std::pair<int, int> positions = results[queryname];
     int numpositions = positions.second - positions.first + 1;
     outputfile << queryname << "\t" << numpositions;
-    std::cout << queryname << ": ";
     if (positions.first != -1) {
       for (int pos = positions.first; pos <= positions.second; pos++) {
         outputfile << "\t" << csa[pos];
-        std::cout << pos;
       }
     }
-    std::cout << std::endl;
     outputfile << std::endl;
   }
   outputfile.close();
