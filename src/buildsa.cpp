@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <filesystem>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/unordered_map.hpp>
@@ -26,7 +27,7 @@ static char args_doc[] = "REFERENCE OUTPUT";
 /* The options we understand. */
 static struct argp_option options[] = {
     {"preftab", 777, "k", 0, "Prefix table length"},
-
+    {0, 'b', "benchmarking_file", 0, "Path to benchmarking file"},
     {0}};
 
 /* Used by main to communicate with parse_opt. */
@@ -34,6 +35,7 @@ struct arguments {
   int preftab;
   char *reference_file;
   char *output_file;
+  char *benchmarking_file;
 };
 
 /* Parse a single option. */
@@ -47,6 +49,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       std::string a(arg);
       arguments->preftab = std::stoi(a);
       break;
+    }
+    case 'b': {
+      arguments->benchmarking_file = arg;
     }
 
     case ARGP_KEY_ARG:
@@ -81,6 +86,8 @@ int main(int argc, char **argv) {
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
   std::ifstream ref(arguments.reference_file);
+  bool benchmarking = (arguments.benchmarking_file != NULL);
+  std::ofstream bfile(arguments.benchmarking_file, std::ofstream::app);
 
   std::string seq;
   bool firstLine = true;
@@ -105,6 +112,8 @@ int main(int argc, char **argv) {
   std::ofstream workfile(work);
   workfile << seq.c_str();
   workfile.close();
+  if (benchmarking) bfile << seq.length();
+  if (benchmarking) bfile << "," << arguments.preftab;
 
   sdsl::cache_config cc(
       false);  // do not delete temp files after csa construction;
@@ -121,6 +130,7 @@ int main(int argc, char **argv) {
 
   std::cout << "Suffix Construction Time for file " << arguments.reference_file
             << " was " << duration << std::endl;
+  if (benchmarking) bfile << "," << duration;
 
   // prefix -> (startidx, endindex)
   std::unordered_map<std::string, std::pair<int, int>> prefix_table;
@@ -156,6 +166,12 @@ int main(int argc, char **argv) {
     std::cout << "Preftable Construction Time for file "
               << arguments.reference_file << " was " << duration << std::endl;
   }
+  if (benchmarking) {
+    bfile << ",";
+    if (arguments.preftab != -1) {
+      bfile << duration;
+    }
+  }
 
   //   for (uint i = 0; i < csa.size(); i++) {
   //     std::cout << std::to_string(csa[i]) + " , ";
@@ -177,4 +193,9 @@ int main(int argc, char **argv) {
   }
   // cereal went out of scope, so contents are flushed.
   csa.serialize(outfile);
+  outfile.close();
+
+  if (benchmarking)
+    bfile << "," << std::filesystem::file_size(arguments.output_file)
+          << std::endl;
 }

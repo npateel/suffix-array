@@ -26,7 +26,8 @@ static char doc[] =
 static char args_doc[] = "INDEX QUERYFILE QUERYMODE OUTPUT";
 
 /* The options we understand. */
-static struct argp_option options[] = {{0}};
+static struct argp_option options[] = {
+    {0, 'b', "benchmarking_file", 0, "Path to benchmarking file"}, {0}};
 
 /* Used by main to communicate with parse_opt. */
 struct arguments {
@@ -34,6 +35,7 @@ struct arguments {
   char *queries;
   char *query_mode;
   char *output;
+  char *benchmarking_file;
 };
 
 /* Parse a single option. */
@@ -43,6 +45,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   struct arguments *arguments = (struct arguments *)state->input;
 
   switch (key) {
+    case 'b':
+      arguments->benchmarking_file = arg;
     case ARGP_KEY_ARG:
       if (state->arg_num >= 4) /* Too many arguments. */
         argp_usage(state);
@@ -96,14 +100,12 @@ int lcpcompare(const std::string &seq, int seqidx, const std::string &query,
                int minlcp) {
   std::string segment = seq.substr(seqidx, query.length() - minlcp);
   int lcp = minlcp;
-  std::cout <<"minlcp : " << minlcp <<  "seqidx" << seqidx << std::endl;
   for (uint i = (uint)minlcp;
-       i < query.length() && (uint)seqidx + (uint)i < seq.length();
-       i++) {
-    if (query.at(i) == seq.at(seqidx +  i)) {
+       i < query.length() && (uint)seqidx + (uint)i < seq.length(); i++) {
+    if (query.at(i) == seq.at(seqidx + i)) {
       lcp++;
     } else {
-      if (query.at(i) < seq.at(seqidx +  i)) {
+      if (query.at(i) < seq.at(seqidx + i)) {
         // query string is before, return lcp -1
         return lcp * -1 - 1;
       } else {
@@ -130,16 +132,18 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
   int smallest, largest;
   int start = startidx;
   int end = endidx;
-  auto starttime = std::chrono::steady_clock::now();
   int startlcp = lcp(query, seq.substr(csa[start], query.length()));
   int endlcp = lcp(query, seq.substr(csa[end - 1], query.length()));
+  auto starttime = std::chrono::steady_clock::now();
   int minlcp;
   while (start <= end) {
     minlcp = std::min(startlcp, endlcp);
     int mid = (start + end) / 2;
     int compare = lcpcompare(seq, csa[mid], query, minlcp);
-    //std::cout << start << "," << end << ", q: " << query << ", startlcp: " << startlcp << ", endlcp: " << endlcp << ", comapre: "<< compare  << std::endl;
-    // query < mid
+    // std::cout << start << "," << end << ", q: " << query << ", startlcp: " <<
+    // startlcp << ", endlcp: " << endlcp << ", comapre: "<< compare  <<
+    // std::endl;
+    //  query < mid
     if (compare < 0) {
       end = mid - 1;
       endlcp = compare * -1 - 1;
@@ -152,18 +156,17 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
       // im too lazy to do a speedup here. Probably could help but \_(:/)_/
       // shouldn't be a majority of cases. Assuming that after
       found = true;
-      if (mid == startidx || lcpcompare(seq, csa[mid - 1], query, minlcp) > 0) {
+      if (mid <= startidx || query.compare(seq.substr(csa[mid - 1], query.length())) > 0) {
         // we know we have the first one
         smallest = mid;
         break;
       }
-      found = true;
       end = mid - 1;
       endlcp = query.length();
     }
   }
   // do the same thing for largest index
-  start = smallest;
+  start = startidx;
   end = endidx;
   startlcp = lcp(query, seq.substr(csa[start], query.length()));
   endlcp = lcp(query, seq.substr(csa[end - 1], query.length()));
@@ -171,8 +174,10 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
     minlcp = std::min(startlcp, endlcp);
     int mid = (start + end) / 2;
     int compare = lcpcompare(seq, csa[mid], query, minlcp);
-    //std::cout << start << ",  " << end << ", q: " << query << ", startlcp: " << startlcp << ", endlcp: " << endlcp << ", comapre: " << compare  << std::endl;
-    // query < mid
+    // std::cout << start << ",  " << end << ", q: " << query << ", startlcp: "
+    // << startlcp << ", endlcp: " << endlcp << ", comapre: " << compare  <<
+    // std::endl;
+    //  query < mid
     if (compare < 0) {
       end = mid - 1;
       endlcp = compare * -1 - 1;
@@ -181,8 +186,8 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
       start = mid + 1;
       startlcp = compare - 1;
     } else {
-      if (mid == endidx - 1 ||
-          lcpcompare(seq, csa[mid + 1], query, minlcp) < 0) {
+      if (mid >= endidx - 1 ||
+          query.compare(seq.substr(csa[mid + 1], query.length())) < 0) {
         // we know we have the last one
         largest = mid;
         break;
@@ -196,7 +201,8 @@ void lcpsearch(int startidx, int endidx, std::string const &seq,
       std::chrono::duration_cast<std::chrono::nanoseconds>(endtime - starttime)
           .count();
   if (found) {
-    //std::cout << "smallest: " << smallest << " largest: " << largest << std::endl;
+    // std::cout << "smallest: " << smallest << " largest: " << largest <<
+    // std::endl;
     results[name] = {smallest, largest};
   } else {
     results[name] = {-1, -2};
@@ -217,7 +223,8 @@ void binsearch(int startidx, int endidx, std::string const &seq,
   while (start <= end) {
     int mid = (start + end) / 2;
     std::string segment = seq.substr(csa[mid], query.length());
-    //std::cout << start << "," << end << ", q: " << query << ", segment: " << segment << std::endl;
+    // std::cout << start << "," << end << ", q: " << query << ", segment: " <<
+    // segment << std::endl;
     int compare = query.compare(segment);
     // query < mid
     if (compare < 0) {
@@ -243,7 +250,8 @@ void binsearch(int startidx, int endidx, std::string const &seq,
   while (start <= end) {
     int mid = (start + end) / 2;
     std::string segment = seq.substr(csa[mid], query.length());
-   // std::cout << start << "," << end << ", q: " << query << ", segment: " << segment << std::endl; 
+    // std::cout << start << "," << end << ", q: " << query << ", segment: " <<
+    // segment << std::endl;
     int compare = query.compare(segment);
     // query < mid
     if (compare < 0) {
@@ -267,7 +275,8 @@ void binsearch(int startidx, int endidx, std::string const &seq,
       std::chrono::duration_cast<std::chrono::nanoseconds>(endtime - starttime)
           .count();
   if (found) {
-    ///std::cout << "smallest: " << smallest << " largest: " << largest << std::endl;
+    /// std::cout << "smallest: " << smallest << " largest: " << largest <<
+    /// std::endl;
     results[name] = {smallest, largest};
   } else {
     results[name] = {-1, -2};
@@ -282,7 +291,7 @@ void naive(std::unordered_map<std::string, std::pair<int, int>> &prefix_table,
            std::unordered_map<std::string, double> &times) {
   // set starting and ending positions
   int start = 0;
-  int end = csa.size();
+  int end = csa.size() - 1;
   for (const auto &[name, query] : queries) {
     // now do binary search!
     binsearch(start, end, seq, csa, name, query, results, times);
@@ -297,17 +306,16 @@ void naiveprefix(
     std::unordered_map<std::string, double> &times) {
   // set starting and ending positions
   for (const auto &[name, query] : queries) {
-    std::string prefix = query.substr(0, k+1);
+    std::string prefix = query.substr(0, k);
     int start, end;
-    if (prefix_table.find(prefix) != prefix_table.end()) {
-    start = prefix_table[prefix].first;
-    end = prefix_table[prefix].second + 1;
-    } else {
-      start = 0;
-      end = csa.size();
+    //if (prefix_table.find(prefix) != prefix_table.end()) {
+      start = prefix_table[prefix].first;
+      end = prefix_table[prefix].second;
+    //} else {
+      //start = 0;
+      //end = csa.size() ;
+    //}
 
-    }
-    
     // now do binary search!
     binsearch(start, end, seq, csa, name, query, results, times);
   }
@@ -320,7 +328,7 @@ void lcpnoprefix(
     std::unordered_map<std::string, std::pair<int, int>> &results,
     std::unordered_map<std::string, double> &times) {
   int start = 0;
-  int end = csa.size();
+  int end = csa.size() - 1;
   for (const auto &[name, query] : queries) {
     // now do binary search!
     lcpsearch(start, end, seq, csa, name, query, results, times);
@@ -333,15 +341,19 @@ void lcpprefix(
     std::unordered_map<std::string, std::pair<int, int>> &results,
     std::unordered_map<std::string, double> &times) {
   for (const auto &[name, query] : queries) {
-    std::string prefix = query.substr(0, k+1);
+    std::string prefix = query.substr(0, k);
     int start, end;
-    if (prefix_table.find(prefix) != prefix_table.end()) {
-    start = prefix_table[prefix].first;
-    end = prefix_table[prefix].second + 1;
-    } else {
-      start = 0;
-      end = csa.size();
-    }
+    //if (prefix_table.find(prefix) != prefix_table.end()) {
+      start = prefix_table[prefix].first;
+      end = prefix_table[prefix].second;
+      if (end == 0) {
+        end = csa.size() - 1;
+      }
+    //} else {
+      //start = 0;
+      //end = csa.size();
+    //}
+    //std::cout << "start " << start << " end " << end << std::endl;
     // now do binary search!
     lcpsearch(start, end, seq, csa, name, query, results, times);
   }
@@ -365,9 +377,17 @@ int main(int argc, char **argv) {
     iarchive(prefix_table, seq);
   }
 
-  
+  bool bench = (arguments.benchmarking_file != NULL);
+  std::ofstream bfile(arguments.benchmarking_file, std::ofstream::app);
+
+// for (const auto& [key, val] : prefix_table) {
+//      std::cout << "k: " << key << ",  val: " << std::to_string(val.first) <<
+//      "," << std::to_string(val.second) << std::endl;
+//    }
 
   csa.load(infile);
+  if (bench) bfile << arguments.index << "," << arguments.query_mode;
+
 
   // determine size of k
   int k = -1;
@@ -375,7 +395,7 @@ int main(int argc, char **argv) {
     k = prefix_table.begin()->first.length();
   }
 
-  std::cout << "loading queries" << std::endl;
+  //std::cout << "loading queries" << std::endl;
   // load in queries
   std::unordered_map<std::string, std::string> queries;
   std::vector<std::string> listofquerynames;
@@ -396,7 +416,15 @@ int main(int argc, char **argv) {
   } else {
     exit(1);
   }
-  std::cout << "computing results" << std::endl;
+
+// for (const auto& [key, val] : queries) {
+//      std::cout << "k: " << key << ",  val: " << val << std::endl;
+//    }
+
+
+
+  if (bench) bfile << "," << queries.begin()->second.length();
+  //std::cout << "computing results" << std::endl;
   // get results
 
   std::unordered_map<std::string, std::pair<int, int>> results;
@@ -416,7 +444,8 @@ int main(int argc, char **argv) {
       naiveprefix(prefix_table, seq, csa, queries, k, results, times);
     }
   }
-  std::cout << "serializing results" << std::endl;
+
+  //std::cout << "serializing results" << std::endl;
   // serialize results
   std::ofstream outputfile(arguments.output);
   for (std::string queryname : listofquerynames) {
@@ -431,5 +460,15 @@ int main(int argc, char **argv) {
     outputfile << std::endl;
   }
   outputfile.close();
+  if (bench) {
+    double sum = 0;
+    for (const auto &[k, v] : times) {
+      sum += v;
+    }
+    double avg = sum / times.size();
+    bfile << "," << avg << "\n";
+    bfile.close();
+  }
+
   exit(0);
 }
